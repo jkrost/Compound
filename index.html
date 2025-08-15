@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Neon Income Visualizer — Canvas</title>
+<style>
+  body { background: black; color: white; font-family: sans-serif; text-align: center; }
+  canvas { background: black; display: block; margin: 20px auto; border: 2px solid magenta; }
+  input, button { margin: 5px; padding: 5px; }
+</style>
+</head>
+<body>
+<h1>💸 Neon Income Visualizer</h1>
+<p>Начальный капитал: <input id="initial" type="number" value="10000">  
+Ежемесячный взнос: <input id="monthly" type="number" value="500">  
+Ставка % год: <input id="rate" type="number" value="10">  
+Лет: <input id="years" type="number" value="10">  
+<button onclick="drawChart()">Построить график</button></p>
+<canvas id="chart" width="800" height="500"></canvas>
+<script>
+function drawChart(){
+  const initial = parseFloat(document.getElementById('initial').value);
+  const monthly = parseFloat(document.getElementById('monthly').value);
+  const rate = parseFloat(document.getElementById('rate').value) / 100;
+  const years = parseFloat(document.getElementById('years').value);
+  const months = years * 12;
+  let balance = initial;
+  const data = [];
+  for(let m=0; m<=months; m++){
+    data.push(balance);
+    balance *= (1 + rate/12);
+    balance += monthly;
+  }
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle = 'lime';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  const maxVal = Math.max(...data);
+  data.forEach((val, i) => {
+    const x = i / months * canvas.width;
+    const y = canvas.height - (val / maxVal * canvas.height);
+    if(i===0) ctx.moveTo(x,y);
+    else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+}
+drawChart();
+</script>
+</body>
+</html>
