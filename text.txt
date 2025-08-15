@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Neon Income Visualizer — Canvas</title>
+<style>
+  :root{
+    --bg:#070a12;
+    --panel:#0d1324cc;
+    --card:#0f1733cc;
+    --text:#eaf2ff;
+    --muted:#9fb0ff;
+    --grid:#2a3564;
+    --axis:#6a7cff;
+    --accent:#00ffee;
+    --danger:#ff5bf1;
+    --ok:#72ff67;
+    --warn:#ffe066;
+    /* неоновые палитры для серий */
+    --c1:#00ffd0; --c2:#ff4df0; --c3:#84ff65; --c4:#ffe24a; --c5:#66a3ff; --c6:#ff7a66; --c7:#c899ff; --c8:#40ff9c;
+  }
+  html,body{height:100%;background:radial-gradient(1200px 700px at 70% 10%, #0f1a39 0%, #081022 40%, #050912 100%);}
+  body{margin:0;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial; color:var(--text);}
+
+  .wrap{display:grid; grid-template-columns: 360px 1fr; gap:14px; height:100%; padding:14px;}
+  @media (max-width: 980px){ .wrap{grid-template-columns: 1fr; grid-auto-rows: min-content 1fr;} }
+
+  .panel{background:var(--panel); backdrop-filter: blur(8px); border:1px solid #1f2a52; border-radius:14px; padding:14px; box-shadow: 0 0 24px #001a66aa inset, 0 0 40px #02123db3;}
+  .panel h1{font-size:18px;margin:0 0 10px 0; letter-spacing:0.3px;}
+  .grid2{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
+  .row{display:flex; flex-direction:column; gap:6px; margin-bottom:10px;}
+  label{font-size:12px; color:var(--muted);}
+  input, select, button{
+    background: #0b1330; color:var(--text); border:1px solid #2b3a7a; border-radius:10px; padding:10px 12px;
+    outline:none; font-size:14px;
+    box-shadow: 0 0 0 0 rgba(0,0,0,0), 0 0 16px #001d57 inset;
+  }
+  input:focus, select:focus{border-color:#6a7cff; box-shadow: 0 0 18px #2746ff66 inset, 0 0 10px #6a7cff55;}
+  .btn{
+    cursor:pointer; font-weight:600; letter-spacing:.3px; text-shadow:0 0 8px #00ffe0aa;
+    background: linear-gradient(135deg, #003a64 0%, #1427a8 100%);
+    border:1px solid #00ffe0; box-shadow: 0 0 20px #00ffe070, 0 0 40px #00ffe044;
+  }
+  .btn:hover{filter:brightness(1.08);}
+  .btn.secondary{background: linear-gradient(135deg, #4b0044 0%, #9c008f 100%); border-color:#ff4df0; text-shadow:0 0 8px #ff4df0aa;}
+  .btn.ghost{background:#10183b; border-color:#6a7cff; text-shadow:none;}
+  .row.inline{flex-direction:row; align-items:center; gap:8px;}
+  .note{font-size:11px; color:#bcd0ff; opacity:.9}
+  .legend{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px}
+  .chip{display:inline-flex; align-items:center; gap:8px; padding:6px 10px; background:var(--card); border:1px solid #2746ff66; border-radius:999px; font-size:12px;}
+  .dot{width:12px; height:12px; border-radius:50%; box-shadow:0 0 12px currentColor, 0 0 24px currentColor;}
+  .canvasCard{position:relative; background:var(--card); border:1px solid #223170; border-radius:14px; padding:10px;}
+  canvas{display:block; width:100%; height:64vh; border-radius:10px; background:
+    radial-gradient(1200px 600px at 20% 0%, rgba(0,255,224,0.06), rgba(0,0,0,0) 60%),
+    linear-gradient(180deg, rgba(10,16,36,0.8), rgba(4,8,20,0.9));
+    box-shadow: inset 0 0 80px #000, 0 0 40px #0ff2;
+  }
+  .toolbar{display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;}
+  .kpi{display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:10px;}
+  .kpi .card{background:#0b1330; border:1px solid #2b3a7a; border-radius:12px; padding:10px;}
+  .kpi .title{font-size:12px; color:var(--muted);}
+  .kpi .value{font-weight:700; font-size:16px; text-shadow:0 0 12px #00ffe055;}
+  .footer-note{font-size:11px; color:#a9b9ff; opacity:.85; margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="panel">
+      <h1>💸 Neon Income Visualizer</h1>
+      <div class="grid2">
+        <div class="row">
+          <label>Начальный капитал</label>
+          <input type="number" id="initial" value="10000" min="0" step="100" />
+        </div>
+        <div class="row">
+          <label>Ежемесячный взнос</label>
+          <input type="number" id="monthly" value="500" min="0" step="10" />
+        </div>
+        <div class="row">
+          <label>Годовая ставка, %</label>
+          <input type="number" id="rate" value="10" step="0.1" />
+        </div>
+        <div class="row">
+          <label>Срок, лет</label>
+          <input type="number" id="years" value="10" min="1" step="1" />
+        </div>
+        <div class="row">
+          <label>Капитализация</label>
+          <select id="freq">
+            <option value="1">Ежегодно</option>
+            <option value="4">Квартально</option>
+            <option value="12" selected>Ежемесячно</option>
+            <option value="52">Еженедельно</option>
+            <option value="365">Ежедневно</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Имя сценария</label>
+          <input type="text" id="label" value="База" />
+        </div>
+
+        <div class="row">
+          <label>Валюта отображения</label>
+          <select id="currency">
+            <option value="USD" selected>USD — Доллар США</option>
+            <option value="EUR">EUR — Евро</option>
+            <option value="RUB">RUB — Рубль</option>
+            <option value="CNY">CNY — Юань</option>
+            <option value="CUSTOM">CUSTOM — Своя</option>
+          </select>
+        </div>
+        <div class="row">
+          <label>Курс к базовой валюте (×)</label>
+          <input type="number" id="fx" value="1" step="0.0001" />
+          <div class="note">Курс умножается на значения. Можно править вручную.</div>
+        </div>
+
+        <div class="row">
+          <label>Случайный «рыночный шум», ±% в месяц (опц.)</label>
+          <input type="number" id="noise" value="0" step="0.1" />
+        </div>
+        <div class="row">
+          <label>Сдвиг начала взносов</label>
+          <select id="contribTiming">
+            <option value="end" selected>В конце месяца</option>
+            <option value="begin">В начале месяца</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn" id="addScenario">+ Добавить сценарий</button>
+        <button class="btn secondary" id="reset">Очистить всё</button>
+        <button class="btn ghost" id="exportCsv">Экспорт CSV</button>
+        <button class="btn ghost" id="savePng">Сохранить PNG</button>
+      </div>
+
+      <div class="legend" id="legend"></div>
+
+      <div class="kpi">
+        <div class="card">
+          <div class="title">Итоговая сумма</div>
+          <div class="value" id="kpiTotal">—</div>
+        </div>
+        <div class="card">
+          <div class="title">Всего внесено</div>
+          <div class="value" id="kpiPaidIn">—</div>
+        </div>
+        <div class="card">
+          <div class="title">Доход (прибыль)</div>
+          <div class="value" id="kpiProfit">—</div>
+        </div>
+      </div>
+      <div class="footer-note">
+        Модель считает по месяцам. Эффективная месячная ставка: <span id="effMonthly">—</span>.
+      </div>
+    </div>
+
+    <div class="canvasCard">
+      <canvas id="chart" width="1400" height="800"></canvas>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const $ = (id)=>document.getElementById(id);
+
+  const defaultsFx = {USD:1, EUR:0.92, RUB:90, CNY:7.1};
+  const neonColors = ["var(--c1)","var(--c2)","var(--c3)","var(--c4)","var(--c5)","var(--c6)","var(--c7)","var(--c8)"];
+  let colorIndex = 0;
+  const scenarios = []; // {label, data:[{t, val}], color, params, totals}
+
+  const els = {
+    initial: $("initial"),
+    monthly: $("monthly"),
+    rate: $("rate"),
+    years: $("years"),
+    freq: $("freq"),
+    label: $("label"),
+    currency: $("currency"),
+    fx: $("fx"),
+    noise: $("noise"),
+    contribTiming: $("contribTiming"),
+
+    effMonthly: $("effMonthly"),
+    kpiTotal: $("kpiTotal"),
+    kpiPaidIn: $("kpiPaidIn"),
+    kpiProfit: $("kpiProfit"),
+    legend: $("legend"),
+
+    add: $("addScenario"),
+    reset: $("reset"),
+    exportCsv: $("exportCsv"),
+    savePng: $("savePng"),
+    canvas: $("chart"),
+  };
+
+  function setFxFromCurrency(){
+    const cur = els.currency.value;
+    if (cur !== "CUSTOM") {
+      els.fx.value = defaultsFx[cur] ?? 1;
+    }
+    draw();
+  }
+  els.currency.addEventListener("change", setFxFromCurrency);
+  setFxFromCurrency();
+
+  function fmtMoney(x){
+    const cur = els.currency.value;
+    const symbol = {USD:"$", EUR:"€", RUB:"₽", CNY:"¥", CUSTOM:"¤"}[cur] || "";
+    // компактное форматирование, но без внешних библиотек:
+    const abs = Math.abs(x);
+    let v = x;
+    let suffix="";
+    if (abs >= 1e12){ v = x/1e12; suffix=" трлн"; }
+    else if (abs >= 1e9){ v = x/1e9; suffix=" млрд"; }
+    else if (abs >= 1e6){ v = x/1e6; suffix=" млн"; }
+    else if (abs >= 1e3){ v = x/1e3; suffix=" тыс."; }
+    return `${symbol}${v.toLocaleString('ru-RU',{maximumFractionDigits:2})}${suffix}`;
+  }
+
+  function calcSeries({
+    initial, monthly, annualRatePct, years, compPerYear, noisePct=0, contribTiming="end"
+  }){
+    const stepsPerYear = 12;
+    const n = parseFloat(compPerYear);
+    const r = (annualRatePct/100);
+    // эффективная месячная ставка при номинальной r с капитализацией n раз в год
+    const i = Math.pow(1 + r / n, n / stepsPerYear) - 1;
+
+    const totalMonths = Math.max(1, Math.round(years*12));
+    const data = [];
+    let bal = initial;
+    let paidIn = initial;
+
+    for (let m=0; m<=totalMonths; m++){
+      if (m>0){
+        if (contribTiming === "begin"){
+          bal += monthly;
+          paidIn += monthly;
+        }
+        // доходность месяца + шум
+        const noise = noisePct ? ((Math.random()*2-1) * (noisePct/100)) : 0;
+        const growth = i + noise;
+        bal *= (1 + growth);
+
+        if (contribTiming === "end"){
+          bal += monthly;
+          paidIn += monthly;
+        }
+      }
+      data.push({ t: m/12, val: bal, paidIn });
+    }
+    return { data, effMonthlyRate: i, paidIn, final: bal };
+  }
+
+  function addScenario(){
+    const params = {
+      initial: +els.initial.value || 0,
+      monthly: +els.monthly.value || 0,
+      annualRatePct: +els.rate.value || 0,
+      years: +els.years.value || 1,
+      compPerYear: +els.freq.value || 12,
+      noisePct: +els.noise.value || 0,
+      contribTiming: els.contribTiming.value
+    };
+    const fx = +els.fx.value || 1;
+    const {data, effMonthlyRate, paidIn, final} = calcSeries(params);
+    const color = getNextColor();
+
+    const fxData = data.map(p=>({t:p.t, val:p.val * fx, paidIn: p.paidIn * fx}));
+    const scen = {
+      label: els.label.value.trim() || `Сценарий ${scenarios.length+1}`,
+      color, params, data: fxData,
+      totals: { paidIn: paidIn*fx, final: final*fx, effMonthlyRate }
+    };
+    scenarios.push(scen);
+    pushLegendChip(scen);
+    updateKPI();
+    draw();
+  }
+
+  function getNextColor(){
+    const c = neonColors[colorIndex % neonColors.length];
+    colorIndex++;
+    // вычислим реальный цвет из CSS var:
+    const tmp = document.createElement("div");
+    tmp.style.color = c;
+    document.body.appendChild(tmp);
+    const rgb = getComputedStyle(tmp).color;
+    document.body.removeChild(tmp);
+    return rgb;
+  }
+
+  function pushLegendChip(scen){
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    const dot = document.createElement("div");
+    dot.className = "dot";
+    dot.style.color = scen.color;
+    const text = document.createElement("span");
+    text.textContent = `${scen.label}`;
+    chip.appendChild(dot);
+    chip.appendChild(text);
+
+    chip.title = `Итог: ${fmtMoney(scen.totals.final)} | Внесено: ${fmtMoney(scen.totals.paidIn)}`;
+    els.legend.appendChild(chip);
+  }
+
+  function resetAll(){
+    scenarios.length = 0;
+    colorIndex = 0;
+    els.legend.innerHTML = "";
+    els.kpiTotal.textContent = "—";
+    els.kpiPaidIn.textContent = "—";
+    els.kpiProfit.textContent = "—";
+    els.effMonthly.textContent = "—";
+    draw();
+  }
+
+  function updateKPI(){
+    if (scenarios.length === 0) return;
+    // показываем KPI по последнему добавленному сценарию
+    const s = scenarios[scenarios.length-1];
+    els.kpiTotal.textContent = fmtMoney(s.totals.final);
+    els.kpiPaidIn.textContent = fmtMoney(s.totals.paidIn);
+    els.kpiProfit.textContent = fmtMoney(s.totals.final - s.totals.paidIn);
+    els.effMonthly.textContent = (s.totals.effMonthlyRate*100).toFixed(3) + " % / мес";
+  }
+
+  // Экспорт CSV всех сценариев
+  function exportCsv(){
+    if (scenarios.length===0) return;
+    // соберём уникальные t
+    const times = new Set();
+    scenarios.forEach(s=>s.data.forEach(p=>times.add(p.t)));
+    const ts = Array.from(times).sort((a,b)=>a-b);
+
+    let header = ["t_years", ...scenarios.map(s=>`${s.label}`)];
+    let rows = [header.join(",")];
+
+    ts.forEach(t=>{
+      const row = [t.toFixed(4)];
+      scenarios.forEach(s=>{
+        const point = s.data.find(p=>Math.abs(p.t - t) < 1e-8);
+        row.push(point ? point.val.toFixed(2) : "");
+      });
+      rows.push(row.join(","));
+    });
+
+    const blob = new Blob([rows.join("\n")], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "scenarios.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Сохранить PNG
+  function savePng(){
+    const link = document.createElement('a');
+    link.download = 'neon-income-visualizer.png';
+    link.href = els.canvas.toDataURL('image/png');
+    link.click();
+  }
+
+  // ===== Canvas Chart =====
+  const ctx = els.canvas.getContext('2d');
+
+  function draw(){
+    const W = els.canvas.width;
+    const H = els.canvas.height;
+
+    // гибкая адаптация к CSS размеру
+    const dpr = window.devicePixelRatio || 1;
+    const rect = els.canvas.getBoundingClientRect();
+    els.canvas.width = Math.round(rect.width * dpr);
+    els.canvas.height = Math.round(rect.height * dpr);
+
+    const w = els.canvas.width;
+    const h = els.canvas.height;
+
+    // фон
+    ctx.clearRect(0,0,w,h);
+    const grd = ctx.createRadialGradient(w*0.2,h*0.1, 50, w*0.2,h*0.1, Math.max(w,h));
+    grd.addColorStop(0, "rgba(0,255,224,0.10)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = grd;
+    ctx.fillRect(0,0,w,h);
+
+    // поля
+    const padL = 90*dpr, padR = 30*dpr, padT = 36*dpr, padB = 64*dpr;
+    const plotW = w - padL - padR;
+    const plotH = h - padT - padB;
+
+    // оси и сетка
+    ctx.save();
+    ctx.translate(padL, padT);
+
+    // найти мин/макс
+    let minX=0, maxX=1, minY=0, maxY=1;
+    if (scenarios.length > 0){
+      maxX = Math.max(...scenarios.map(s => s.data[s.data.length-1].t));
+      maxY = Math.max(...scenarios.flatMap(s => s.data.map(p=>p.val)));
+    }
+
+    // приятные пределы
+    if (maxY <= 0) maxY = 1;
+    const niceMaxY = niceNumber(maxY);
+    const yTicks = 6;
+
+    // сетка Y
+    ctx.lineWidth = 1*dpr;
+    ctx.strokeStyle = "rgba(42,53,100,0.9)";
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--muted');
+    ctx.font = `${12*dpr}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    ctx.textBaseline = "middle";
+
+    for (let i=0;i<=yTicks;i++){
+      const yVal = i*(niceMaxY/yTicks);
+      const y = plotH - (yVal/niceMaxY)*plotH;
+      ctx.globalAlpha = 0.9;
+      ctx.beginPath();
+      ctx.moveTo(0, y); ctx.lineTo(plotW, y); ctx.stroke();
+
+      ctx.globalAlpha = 1;
+      ctx.fillText(fmtMoney(yVal), -10*dpr, y);
+    }
+
+    // сетка X (по годам)
+    const yearStep = Math.max(1, Math.round(maxX/10));
+    ctx.textAlign = "center";
+    for (let yv=0; yv<=Math.ceil(maxX); yv+=yearStep){
+      const x = (yv/maxX)*plotW || 0;
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,plotH); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.fillText(`${yv} г`, x, plotH + 18*dpr);
+    }
+
+    // оси
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--axis');
+    ctx.shadowColor = "rgba(106,124,255,0.8)"; ctx.shadowBlur = 8*dpr;
+    ctx.beginPath(); // Y
+    ctx.moveTo(0,0); ctx.lineTo(0,plotH); ctx.stroke();
+    ctx.beginPath(); // X
+    ctx.moveTo(0,plotH); ctx.lineTo(plotW,plotH); ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // линии сценариев
+    scenarios.forEach(s=>{
+      ctx.lineWidth = 3.2*dpr;
+      ctx.strokeStyle = s.color;
+      ctx.shadowColor = s.color;
+      ctx.shadowBlur = 14*dpr;
+      ctx.beginPath();
+      s.data.forEach((p,idx)=>{
+        const x = (p.t/maxX) * plotW;
+        const y = plotH - (p.val/niceMaxY)*plotH;
+        if (idx===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // точки редкие, чтобы не перегружать
+      const step = Math.max(1, Math.floor(s.data.length/24));
+      s.data.forEach((p,idx)=>{
+        if (idx % step !== 0) return;
+        const x = (p.t/maxX) * plotW;
+        const y = plotH - (p.val/niceMaxY)*plotH;
+        ctx.fillStyle = s.color;
+        ctx.shadowColor = s.color; ctx.shadowBlur = 10*dpr;
+        ctx.beginPath(); ctx.arc(x,y, 3.2*dpr, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+      });
+    });
+
+    // интерактивная подсказка
+    drawTooltip(ctx, plotW, plotH, maxX, niceMaxY);
+
+    ctx.restore();
+  }
+
+  function niceNumber(maxY){
+    // округляем вверх до «красивого» числа
+    const exp = Math.floor(Math.log10(maxY));
+    const base = Math.pow(10, exp);
+    const n = maxY / base;
+    let nice;
+    if (n <= 1) nice = 1;
+    else if (n <= 2) nice = 2;
+    else if (n <= 5) nice = 5;
+    else nice = 10;
+    return nice * base;
+  }
+
+  // Подсказка при наведении
+  function drawTooltip(ctx, plotW, plotH, maxX, maxY){
+    const rect = els.canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio||1;
+    const padL = 90*dpr, padT = 36*dpr;
+    const mouse = currentMouse;
+    if (!mouse) return;
+    const xInPlot = (mouse.x*dpr - padL);
+    const yInPlot = (mouse.y*dpr - padT);
+    if (xInPlot<0||yInPlot<0||xInPlot>plotW||yInPlot>plotH) return;
+
+    const t = (xInPlot/plotW) * maxX;
+    if (!isFinite(t)) return;
+
+    // соберём значения каждой серии на ближайшем месяце
+    const monthIndex = Math.round(t*12);
+    const rows = [];
+    scenarios.forEach(s=>{
+      const p = s.data[monthIndex];
+      if (p){
+        rows.push({label:s.label, color:s.color, val:p.val, paidIn:p.paidIn});
+      }
+    });
+    if (rows.length===0) return;
+
+    // вертикальная направляющая
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.25)";
+    ctx.setLineDash([6,6]);
+    ctx.beginPath(); ctx.moveTo(xInPlot, 0); ctx.lineTo(xInPlot, plotH); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // рисуем карточку
+    const lines = [
+      `t = ${(monthIndex/12).toFixed(2)} лет`,
+      ...rows.map(r=>`${r.label}: ${fmtMoney(r.val)} (${fmtMoney(r.val - r.paidIn)})`)
+    ];
+    const dprFont = 12*dpr;
+    ctx.font = `${dprFont}px ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial`;
+    const padding = 10*dpr;
+    const width = Math.max(...lines.map(l=>ctx.measureText(l).width)) + padding*2;
+    const height = (lines.length*(dprFont+6*dpr)) + padding*2;
+
+    let bx = xInPlot + 14*dpr;
+    let by = Math.min(plotH - height - 10*dpr, Math.max(10*dpr, yInPlot - height/2));
+    if (bx + width > plotW) bx = xInPlot - width - 14*dpr;
+
+    // свечение
+    ctx.shadowColor = "rgba(0,255,234,0.6)";
+    ctx.shadowBlur = 18*dpr;
+    roundRect(ctx, bx, by, width, height, 10*dpr, "#0b1330cc", "#00ffe0");
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = "#dff8ff";
+    lines.forEach((l,i)=>{
+      ctx.fillText(l, bx+padding, by+padding + i*(dprFont+6*dpr));
+    });
+
+    // точечки на линиях
+    rows.forEach(r=>{
+      const y = plotH - (r.val / maxY) * plotH;
+      ctx.fillStyle = r.color;
+      ctx.beginPath(); ctx.arc(xInPlot, y, 4*dpr, 0, Math.PI*2); ctx.fill();
+    });
+
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x,y,w,h,r, fill, stroke){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+    if (stroke){ ctx.strokeStyle = stroke; ctx.stroke(); }
+  }
+
+  let currentMouse = null;
+  els.canvas.addEventListener('mousemove', (e)=>{
+    currentMouse = {x:e.offsetX, y:e.offsetY};
+    draw();
+  });
+  els.canvas.addEventListener('mouseleave', ()=>{
+    currentMouse = null; draw();
+  });
+  window.addEventListener('resize', draw);
+
+  // Кнопки
+  els.add.addEventListener("click", addScenario);
+  els.reset.addEventListener("click", resetAll);
+  els.exportCsv.addEventListener("click", exportCsv);
+  els.savePng.addEventListener("click", savePng);
+
+  // Подстройка курса под валюту
+  // (оставляем возможность ручного ввода — просто подсказка)
+  els.currency.addEventListener('change', ()=>{
+    setFxFromCurrency();
+  });
+
+  // Нарисовать начальное пустое поле
+  draw();
+})();
+</script>
+</body>
+</html>
